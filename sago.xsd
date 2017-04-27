@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           targetNamespace="http://www.mengxiaozhu.com/gsql"
+           xmlns="http://www.mengxiaozhu.com/gsql"
+           elementFormDefault="qualified">
+    <xs:element name="sago">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="table" type="xs:string" maxOccurs="1" minOccurs="0"/>
+                <xs:element name="type" type="xs:string" maxOccurs="1" minOccurs="0"/>
+                <xs:element name="package" type="xs:string" minOccurs="0"/>
+                <xs:element name="select" maxOccurs="unbounded" minOccurs="0" type="sql">
+                </xs:element>
+                <xs:element name="insert" maxOccurs="unbounded" minOccurs="0" type="sql">
+                </xs:element>
+                <xs:element name="execute" maxOccurs="unbounded" minOccurs="0" type="sql"/>
+            </xs:sequence>
+        </xs:complexType>
+
+    </xs:element>
+    <xs:complexType mixed="true" name="sql">
+        <xs:attribute name="args" type="xs:string" />
+        <xs:attribute name="name" type="xs:string"/>
+    </xs:complexType>
+</xs:schema>

@@ -1,0 +1,10 @@
+<sago>
+    <table>user</table>
+    <type>UserDao</type>
+    <select name="FindByName" args="name">
+        select {{.fields}} from {{.table}} where `name` = {{arg .name}}
+    </select>
+    <select name="FindAll">
+        select {{.fields}} from {{.table}}
+    </select>
+</sago>
