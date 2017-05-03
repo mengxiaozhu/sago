@@ -14,7 +14,6 @@ func MustMap(obj interface{}) {
 	if err != nil {
 		panic(err)
 	}
-
 }
 
 func AddFunc(name string, fnFactory func(ctx *FnCtx) (fn TemplateFunc)) {
