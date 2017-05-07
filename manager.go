@@ -196,7 +196,7 @@ func (m *Manager) mapCachedFuncs(structValue reflect.Value) (err *linkerror.Erro
 
 	cacheField := structValue.FieldByName("Cache")
 	if cacheField == emptyReflectValue {
-
+		return
 	}
 	if cacheField.Type().Kind() != reflect.Ptr {
 		return linkerror.New(BadCacheField, "kind of Cache is "+cacheField.Type().Kind().String()+" ,but expected pointer")
