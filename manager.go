@@ -273,7 +273,7 @@ func (m *Manager) generateFunc(needCache bool, usedName string, fn *Fn, f reflec
 		return emptyReflectValue, linkerror.New(XMLMappedWrong, "cannot found func "+f.Name+" mapped sql")
 	}
 	if len(fn.Args) != f.Type.NumIn() {
-		return emptyReflectValue, linkerror.New(XMLMappedWrong, fmt.Sprint(f.Name, " Args number is wrong , expected ", f.Type.NumIn(), " but xml defined ", fn.Args))
+		return emptyReflectValue, linkerror.New(XMLMappedWrong, fmt.Sprint(f.Name, " Args number is wrong , expected ", f.Type.NumIn(), " but xml defined ", fn.Args,"length:",len(fn.Args)))
 	}
 	tpl, tplErr := template.New(fn.Name).Funcs(m.emptyFuncMap()).Parse(fn.SQL)
 	if tplErr != nil {

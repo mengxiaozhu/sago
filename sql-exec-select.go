@@ -39,7 +39,6 @@ func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
 	resultType := s.ReturnTypes[0]
 	switch resultType.Kind() {
 	case reflect.Slice, reflect.Array:
-
 		listValue := reflect.New(resultType)
 		var err error
 		err = s.DB.Select(listValue.Interface(), sqlString, sqlArgs...)
@@ -52,7 +51,7 @@ func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
 		var err error
 		err = s.DB.Get(oneValue.Interface(), sqlString, sqlArgs...)
 		return []reflect.Value{
-			oneValue.Elem(),
+			oneValue,
 			reflect.ValueOf(&err).Elem(),
 		}
 
