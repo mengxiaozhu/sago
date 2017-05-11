@@ -2,32 +2,23 @@ package sago
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
-	"github.com/mengxiaozhu/linkerror"
 	"os"
 	"reflect"
 	"strings"
 	"text/template"
-)
 
-var DirError = errors.New("read dir wrong")
-var ParseXMLError = errors.New("parse xml error")
-var NoDBField = errors.New("no DB field in struct.")
-var NoCacheInManager = errors.New("manager's Cache field is nil")
-var BadCacheField = errors.New("Cache field of this struct is wrong type for sago. the field type must be pointer of the struct type")
-var BadSQLTemplate = errors.New("bad sql")
-var WrongTypeToMap = errors.New("map object must be pointer of struct")
-var XMLMappedWrong = errors.New("XML mapped wrong")
+	"github.com/mengxiaozhu/linkerror"
+)
 
 type Cache interface {
 	Set(dir string, key string, v interface{})
 	Get(dir string, key string) (v interface{}, ok bool)
 }
 
-func New() *Manager {
-	m := &Manager{
-		files:         []*XMLRoot{},
+func New() *Central {
+	m := &Central{
+		xmls:          []*XMLRoot{},
 		funcFactories: []TemplateFuncFactory{},
 	}
 	m.AddFunc(MethodName_Arg, argFunc)
@@ -40,57 +31,68 @@ type TemplateFuncFactory struct {
 	Name   string
 	Create func(ctx *FnCtx) TemplateFunc
 }
-type Manager struct {
+type Central struct {
 	Cache         Cache
-	files         []*XMLRoot
+	xmls          []*XMLRoot
 	funcFactories []TemplateFuncFactory
 	converted     bool
 	fullNameMap   map[string]*SQLs
 }
 
-func (m *Manager) ScanDir(dirPath string) (e error) {
-	m.converted = false
+// 扫描文件下以所有以 .sql.xml 结尾的文件
+// <sago>
+// 	<package></package>
+//	<type></type>
+//	<table></table>
+//	<select name="FindByName" args="name">
+// 		select {{.fields}} from {{.table}} where `name` = {{arg .name}}
+// 	</select> 可重复
+//	<execute></execute>
+//	<insert></insert>
+// </sago>
+func (m *Central) ScanDir(dirPath string) (e error) {
 	dir, err := os.Open(dirPath)
 	if err != nil {
-		return linkerror.New(DirError, err.Error())
+		return linkerror.New(Dir, err.Error())
 	}
 	defer dir.Close()
 	stat, err := dir.Stat()
 	if err != nil {
-		return linkerror.New(DirError, err.Error())
+		return linkerror.New(Dir, err.Error())
 	}
 	if !stat.IsDir() {
-		return linkerror.New(DirError, dirPath+" not dir")
+		return linkerror.New(Dir, dirPath+" not dir")
 	}
 	files, err := dir.Readdir(-1)
 	if err != nil {
-		return linkerror.New(DirError, err.Error())
+		return linkerror.New(Dir, err.Error())
 	}
-	for _, fileinfo := range files {
-		if !fileinfo.IsDir() {
-			name := fileinfo.Name()
+	for _, fileInfo := range files {
+		if !fileInfo.IsDir() {
+			name := fileInfo.Name()
 			if strings.HasSuffix(name, ".sql.xml") {
 				root, err := parseXML(dirPath + string(os.PathSeparator) + name)
 				if err != nil {
-					return linkerror.New(ParseXMLError, err.Error())
+					return linkerror.New(Xml, err.Error())
 				}
-				m.files = append(m.files, root)
+				m.xmls = append(m.xmls, root)
 			}
 		}
 	}
 	return nil
 }
 
-func (m *Manager) Map(objs ...interface{}) error {
+// 参数的基本类型必须是 Ptr
+// 读取变量并注入配置文件中配置的方法
+func (m *Central) Map(daos ...interface{}) error {
 	if !m.converted {
 		err := m.convert()
 		if err != nil {
 			return err
 		}
 	}
-
-	for _, obj := range objs {
-		err := m.mapFuncs(obj)
+	for _, dao := range daos {
+		err := m.mapFuncs(dao)
 		if err != nil {
 			return err
 		}
@@ -98,35 +100,32 @@ func (m *Manager) Map(objs ...interface{}) error {
 	return nil
 }
 
-func (m *Manager) convert() (err *linkerror.Error) {
-	files := map[string]*XMLRoot{}
-	for _, file := range m.files {
-		var name string
-		if file.Package == "" {
-			name = file.Type
-		} else {
-			name = file.Package + "." + file.Type
-		}
-		if existFile, ok := files[name]; ok {
-			files[name], err = combineXMLRoots(file, existFile)
+// 根据xml生成配置
+func (m *Central) convert() (err *linkerror.Error) {
+	xmls := map[string]*XMLRoot{}
+	// 去重合并
+	for _, xml := range m.xmls {
+		name := xml.Name()
+		if existFile, ok := xmls[name]; ok {
+			xmls[name], err = combineXMLRoots(xml, existFile)
 			if err != nil {
 				return
 			}
 		} else {
-			files[name] = file
+			xmls[name] = xml
 		}
 	}
 	fullNameSqls := map[string]*SQLs{}
-	for name, v := range files {
+	for name, xml := range xmls {
 		sqls := &SQLs{
-			Package: v.Package,
-			Type:    v.Type,
-			Table:   v.Table,
+			Package: xml.Package,
+			Type:    xml.Type,
+			Table:   xml.Table,
 		}
 		sqls.Fns = map[string]*Fn{}
-		insertByType("select", sqls.Fns, v.Selects)
-		insertByType("execute", sqls.Fns, v.Executes)
-		insertByType("insert", sqls.Fns, v.Inserts)
+		insertByType("select", sqls.Fns, xml.Selects)
+		insertByType("execute", sqls.Fns, xml.Executes)
+		insertByType("insert", sqls.Fns, xml.Inserts)
 		fullNameSqls[name] = sqls
 	}
 	m.fullNameMap = fullNameSqls
@@ -154,26 +153,24 @@ func StrToArgs(str string) []string {
 	}
 	return result
 }
-func (m *Manager) getSQLs(typ reflect.Type) (sqls *SQLs, usedName string) {
+func (m *Central) getSQLs(typ reflect.Type) (sqls *SQLs, name string) {
 	pkg := typ.PkgPath()
 	typeName := typ.Name()
-	sqls = m.fullNameMap[pkg+"."+typeName]
-	if sqls == nil {
-		sqls = m.fullNameMap[typeName]
-		if sqls == nil {
-			return nil, ""
-		}
-		usedName = typeName
-	} else {
-		usedName = pkg + "." + typeName
+	name = pkg + "." + typeName
+	if sqls = m.fullNameMap[name]; sqls != nil {
+		return sqls, name
 	}
-	return sqls, usedName
+	if sqls = m.fullNameMap[typeName]; sqls != nil {
+		name = typeName
+		return sqls, name
+	}
+	return nil, ""
 }
 
-func (m *Manager) AddFunc(name string, fnFactory func(ctx *FnCtx) (fn TemplateFunc)) {
+func (m *Central) AddFunc(name string, fnFactory func(ctx *FnCtx) (fn TemplateFunc)) {
 	m.funcFactories = append(m.funcFactories, TemplateFuncFactory{Create: fnFactory, Name: name})
 }
-func (m *Manager) emptyFuncMap() template.FuncMap {
+func (m *Central) emptyFuncMap() template.FuncMap {
 	fm := template.FuncMap{}
 	for _, factory := range m.funcFactories {
 		fm[factory.Name] = empty
@@ -192,7 +189,7 @@ func getDBFieldFromStruct(st reflect.Value) (DB *sql.DB, err *linkerror.Error) {
 
 	return dbValue.Interface().(*sql.DB), nil
 }
-func (m *Manager) mapCachedFuncs(structValue reflect.Value) (err *linkerror.Error) {
+func (m *Central) mapCachedFuncs(structValue reflect.Value) (err *linkerror.Error) {
 
 	cacheField := structValue.FieldByName("Cache")
 	if cacheField == emptyReflectValue {
@@ -217,9 +214,8 @@ func (m *Manager) mapCachedFuncs(structValue reflect.Value) (err *linkerror.Erro
 	}
 	return
 }
-func (m *Manager) mapFns(needCache bool, typ reflect.Type, value reflect.Value) (err *linkerror.Error) {
-	// get sqls by type
-	sqls, usedName := m.getSQLs(typ)
+func (m *Central) mapFns(needCache bool, typ reflect.Type, value reflect.Value) (err *linkerror.Error) {
+	sqls, name := m.getSQLs(typ)
 	if sqls == nil {
 		return linkerror.New(XMLMappedWrong, "cannot found sqls to this type "+typ.PkgPath()+"."+typ.Name())
 	}
@@ -235,7 +231,7 @@ func (m *Manager) mapFns(needCache bool, typ reflect.Type, value reflect.Value) 
 	for i := 0; i < num; i++ {
 		f := typ.Field(i)
 		if f.Type.Kind() == reflect.Func {
-			fn, err := m.generateFunc(needCache, usedName, sqls.Fns[f.Name], f, db, sqls.Table)
+			fn, err := m.generateFunc(needCache, name, sqls.Fns[f.Name], f, db, sqls.Table)
 			if err != nil {
 				return err
 			}
@@ -245,17 +241,16 @@ func (m *Manager) mapFns(needCache bool, typ reflect.Type, value reflect.Value) 
 
 	return
 }
-func (m *Manager) mapFuncs(obj interface{}) (err *linkerror.Error) {
+func (m *Central) mapFuncs(obj interface{}) (err *linkerror.Error) {
 	value := reflect.ValueOf(obj)
-
-	typ := reflect.TypeOf(obj)
-	// type check
+	typ := value.Type()
+	// 检查基本类型是否为Ptr
 	if typ.Kind() != reflect.Ptr {
 		return linkerror.New(WrongTypeToMap, "but got "+typ.Kind().String()+" -> "+typ.String())
 	}
-	// change pointer type to struct type
-	typ = typ.Elem()
+	// 取得具体对象
 	value = value.Elem()
+	typ = typ.Elem()
 	err = m.mapFns(false, typ, value)
 	if err != nil {
 		return err
@@ -268,12 +263,12 @@ func (m *Manager) mapFuncs(obj interface{}) (err *linkerror.Error) {
 }
 
 // generate func
-func (m *Manager) generateFunc(needCache bool, usedName string, fn *Fn, f reflect.StructField, db *sql.DB, table string) (generatedFunc reflect.Value, err *linkerror.Error) {
+func (m *Central) generateFunc(needCache bool, usedName string, fn *Fn, f reflect.StructField, db *sql.DB, table string) (generatedFunc reflect.Value, err *linkerror.Error) {
 	if fn == nil {
 		return emptyReflectValue, linkerror.New(XMLMappedWrong, "cannot found func "+f.Name+" mapped sql")
 	}
 	if len(fn.Args) != f.Type.NumIn() {
-		return emptyReflectValue, linkerror.New(XMLMappedWrong, fmt.Sprint(f.Name, " Args number is wrong , expected ", f.Type.NumIn(), " but xml defined ", fn.Args,"length:",len(fn.Args)))
+		return emptyReflectValue, linkerror.New(XMLMappedWrong, fmt.Sprint(f.Name, " Args number is wrong , expected ", f.Type.NumIn(), " but xml defined ", fn.Args, "length:", len(fn.Args)))
 	}
 	tpl, tplErr := template.New(fn.Name).Funcs(m.emptyFuncMap()).Parse(fn.SQL)
 	if tplErr != nil {

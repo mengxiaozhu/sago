@@ -1,5 +1,5 @@
 <sago>
-    <table>user</table>
+    <table>sago.user</table>
     <type>UserDao</type>
     <select name="FindByName" args="name">
         select {{.fields}} from {{.table}} where `name` = {{arg .name}}

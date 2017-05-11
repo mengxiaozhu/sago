@@ -1,0 +1,7 @@
+<sago>
+    <table>sago.user</table>
+    <type>UserDao</type>
+    <select name="FindByID" args="id">
+        select {{.fields}} from {{.table}} where `id` = {{arg .id}}
+    </select>
+</sago>
