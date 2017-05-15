@@ -22,6 +22,7 @@ func New() *Central {
 		funcFactories: []TemplateFuncFactory{},
 	}
 	m.AddFunc(MethodName_Arg, argFunc)
+	m.AddFunc(MethodIn_Arg, inFunc)
 	return m
 }
 
