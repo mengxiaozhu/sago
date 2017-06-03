@@ -15,7 +15,7 @@ func (s *SQLExecutor) returnError(err error) (results []reflect.Value) {
 		if typ == emptyErrorType {
 			results = append(results, reflect.ValueOf(&err).Elem())
 		} else {
-			results = append(results, reflect.Zero(s.ReturnTypes[0]))
+			results = append(results, reflect.Zero(typ))
 		}
 	}
 	return results
