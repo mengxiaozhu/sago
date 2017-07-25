@@ -57,6 +57,7 @@ func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
 
 	case reflect.Struct,
 		reflect.Bool,
+		reflect.String,
 		reflect.Int,
 		reflect.Int8,
 		reflect.Int16,
