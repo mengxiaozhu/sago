@@ -1,6 +1,7 @@
 package sago
 
 import (
+	"database/sql"
 	"fmt"
 	"reflect"
 )
@@ -16,10 +17,10 @@ func (s *SQLExecutor) SelectCache(args []reflect.Value) (results []reflect.Value
 	key := fmt.Sprint(keys)
 	fromCached, ok := s.Cache.Get(dir, key)
 	if ok {
-		return []reflect.Value{
+		return s.returnSelect(
 			Copy(reflect.ValueOf(fromCached)),
-			reflect.ValueOf(&nilErr).Elem(),
-		}
+			nilErr,
+		)
 	}
 	results = s.Select(args)
 	if results[1].IsNil() {
@@ -27,13 +28,44 @@ func (s *SQLExecutor) SelectCache(args []reflect.Value) (results []reflect.Value
 	}
 	return results
 }
+func (s *SQLExecutor) returnSelect(object reflect.Value, err error) (results []reflect.Value) {
+	returnlength := len(s.ReturnTypes)
+	switch returnlength {
+	case 2:
+		return []reflect.Value{
+			object,
+			reflect.ValueOf(&err).Elem(),
+		}
+	case 3:
+		if err == nil {
+			return []reflect.Value{
+				object,
+				reflect.ValueOf(true),
+				reflect.ValueOf(&err).Elem(),
+			}
+		} else if err == sql.ErrNoRows {
+			return []reflect.Value{
+				object,
+				reflect.ValueOf(false),
+				reflect.ValueOf(&nilErr).Elem(),
+			}
+		} else {
+			return []reflect.Value{
+				object,
+				reflect.ValueOf(false),
+				reflect.ValueOf(&err).Elem(),
+			}
+		}
+	}
+	panic("select only support any,err or any,exist,err returned")
+}
 func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
 	sqlString, sqlArgs, err := s.executeTpl(args)
 	if err != nil {
-		return []reflect.Value{
+		return s.returnSelect(
 			reflect.Zero(s.ReturnTypes[0]),
-			reflect.ValueOf(err),
-		}
+			err,
+		)
 	}
 
 	resultType := s.ReturnTypes[0]
@@ -42,18 +74,18 @@ func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
 		listValue := reflect.New(resultType)
 		var err error
 		err = s.DB.Select(listValue.Interface(), sqlString, sqlArgs...)
-		return []reflect.Value{
+		return s.returnSelect(
 			listValue.Elem(),
-			reflect.ValueOf(&err).Elem(),
-		}
+			err,
+		)
 	case reflect.Ptr:
 		oneValue := reflect.New(resultType.Elem())
 		var err error
 		err = s.DB.Get(oneValue.Interface(), sqlString, sqlArgs...)
-		return []reflect.Value{
+		return s.returnSelect(
 			oneValue,
-			reflect.ValueOf(&err).Elem(),
-		}
+			err,
+		)
 
 	case reflect.Struct,
 		reflect.Bool,
@@ -72,10 +104,10 @@ func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
 		reflect.Float64:
 		oneValue := reflect.New(resultType)
 		err := s.DB.Get(oneValue.Interface(), sqlString, sqlArgs...)
-		return []reflect.Value{
+		return s.returnSelect(
 			oneValue.Elem(),
-			reflect.ValueOf(&err).Elem(),
-		}
+			err,
+		)
 	default:
 		panic("not support such type " + resultType.String())
 	}
