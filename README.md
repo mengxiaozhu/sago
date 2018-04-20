@@ -4,7 +4,7 @@
     ```go
         type UserDao struct{
             DB *sql.DB
-            FindByName(name string)(*User,error)
+            FindByName func(name string)(*User,error)
         }
     ```
 
