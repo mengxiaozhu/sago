@@ -8,29 +8,30 @@ import (
 
 var nilErr error
 
-func (s *SQLExecutor) SelectCache(args []reflect.Value) (results []reflect.Value) {
-	keys := []interface{}{}
+func (e *SQLExecutor) SelectCache(args []reflect.Value) (results []reflect.Value) {
+	var keys []interface{}
 	for _, v := range args {
 		keys = append(keys, v.Interface())
 	}
-	dir := s.daoName + "." + s.Fn.Name
+	dir := e.daoName + "." + e.Fn.Name
 	key := fmt.Sprint(keys)
-	fromCached, ok := s.Cache.Get(dir, key)
+	fromCached, ok := e.Cache.Get(dir, key)
 	if ok {
-		return s.returnSelect(
-			Copy(reflect.ValueOf(fromCached)),
+		return e.returnSelect(
+			clone(reflect.ValueOf(fromCached)),
 			nilErr,
 		)
 	}
-	results = s.Select(args)
+	results = e.Select(args)
 	if results[1].IsNil() {
-		s.Cache.Set(dir, key, Copy(results[0]).Interface())
+		e.Cache.Set(dir, key, clone(results[0]).Interface())
 	}
 	return results
 }
-func (s *SQLExecutor) returnSelect(object reflect.Value, err error) (results []reflect.Value) {
-	returnlength := len(s.ReturnTypes)
-	switch returnlength {
+
+func (e *SQLExecutor) returnSelect(object reflect.Value, err error) (results []reflect.Value) {
+	outNum := len(e.ReturnTypes)
+	switch outNum {
 	case 2:
 		return []reflect.Value{
 			object,
@@ -59,30 +60,31 @@ func (s *SQLExecutor) returnSelect(object reflect.Value, err error) (results []r
 	}
 	panic("select only support any,err or any,exist,err returned")
 }
-func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
-	sqlString, sqlArgs, err := s.executeTpl(args)
+
+func (e *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
+	sqlString, sqlArgs, err := e.executeTpl(args)
 	if err != nil {
-		return s.returnSelect(
-			reflect.Zero(s.ReturnTypes[0]),
+		return e.returnSelect(
+			reflect.Zero(e.ReturnTypes[0]),
 			err,
 		)
 	}
 
-	resultType := s.ReturnTypes[0]
+	resultType := e.ReturnTypes[0]
 	switch resultType.Kind() {
 	case reflect.Slice, reflect.Array:
 		listValue := reflect.New(resultType)
 		var err error
-		err = s.DB.Select(listValue.Interface(), sqlString, sqlArgs...)
-		return s.returnSelect(
+		err = e.DB.Select(listValue.Interface(), sqlString, sqlArgs...)
+		return e.returnSelect(
 			listValue.Elem(),
 			err,
 		)
 	case reflect.Ptr:
 		oneValue := reflect.New(resultType.Elem())
 		var err error
-		err = s.DB.Get(oneValue.Interface(), sqlString, sqlArgs...)
-		return s.returnSelect(
+		err = e.DB.Get(oneValue.Interface(), sqlString, sqlArgs...)
+		return e.returnSelect(
 			oneValue,
 			err,
 		)
@@ -103,8 +105,8 @@ func (s *SQLExecutor) Select(args []reflect.Value) (results []reflect.Value) {
 		reflect.Float32,
 		reflect.Float64:
 		oneValue := reflect.New(resultType)
-		err := s.DB.Get(oneValue.Interface(), sqlString, sqlArgs...)
-		return s.returnSelect(
+		err := e.DB.Get(oneValue.Interface(), sqlString, sqlArgs...)
+		return e.returnSelect(
 			oneValue.Elem(),
 			err,
 		)

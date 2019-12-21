@@ -9,9 +9,9 @@ var (
 	emptyErrorType = reflect.TypeOf(&emptyError).Elem()
 )
 
-func (s *SQLExecutor) returnError(err error) (results []reflect.Value) {
+func (e *SQLExecutor) returnError(err error) (results []reflect.Value) {
 	results = []reflect.Value{}
-	for _, typ := range s.ReturnTypes {
+	for _, typ := range e.ReturnTypes {
 		if typ == emptyErrorType {
 			results = append(results, reflect.ValueOf(&err).Elem())
 		} else {
@@ -20,16 +20,17 @@ func (s *SQLExecutor) returnError(err error) (results []reflect.Value) {
 	}
 	return results
 }
-func (s *SQLExecutor) Insert(args []reflect.Value) (results []reflect.Value) {
-	sqlstring, sqlargs, err := s.executeTpl(args)
+
+func (e *SQLExecutor) Insert(args []reflect.Value) (results []reflect.Value) {
+	sqlText, sqlArgs, err := e.executeTpl(args)
 
 	if err != nil {
-		return s.returnError(err)
+		return e.returnError(err)
 	}
-	rs, err := s.DB.Exec(sqlstring, sqlargs...)
+	rs, err := e.DB.Exec(sqlText, sqlArgs...)
 
 	if err != nil {
-		return s.returnError(err)
+		return e.returnError(err)
 	}
 	firstArg := args[0]
 	if firstArg.Kind() == reflect.Ptr && firstArg.Elem().Kind() == reflect.Struct {
@@ -43,22 +44,22 @@ func (s *SQLExecutor) Insert(args []reflect.Value) (results []reflect.Value) {
 			idField.SetInt(id)
 		}
 	}
-	var emptyError error
+	var nilError error
 	affected, _ := rs.RowsAffected()
-	if s.ReturnTypes[0].Kind() == reflect.Int64 {
+	if e.ReturnTypes[0].Kind() == reflect.Int64 {
 		return []reflect.Value{
 			reflect.ValueOf(affected),
-			reflect.ValueOf(&emptyError).Elem(),
+			reflect.ValueOf(&nilError).Elem(),
 		}
 	}
-	if s.ReturnTypes[0].Kind() == reflect.Int {
+	if e.ReturnTypes[0].Kind() == reflect.Int {
 		return []reflect.Value{
 			reflect.ValueOf(int(affected)),
-			reflect.ValueOf(&emptyError).Elem(),
+			reflect.ValueOf(&nilError).Elem(),
 		}
 	}
-	if len(s.ReturnTypes) == 1 {
-		return s.returnError(emptyError)
+	if len(e.ReturnTypes) == 1 {
+		return e.returnError(nilError)
 	}
 	panic("NOT SUPPORT")
 }

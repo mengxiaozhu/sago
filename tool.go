@@ -2,14 +2,15 @@ package sago
 
 import (
 	"encoding/xml"
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"reflect"
 	"strings"
 )
 
 const (
-	MethodName_Arg = "arg"
-	MethodIn_Arg   = "in"
+	MethodNameArg = "arg"
+	MethodInArg   = "in"
 )
 
 var emptyReflectValue = reflect.Value{}
@@ -38,17 +39,31 @@ func inFunc(ctx *FnCtx) TemplateFunc {
 		return "in (" + strings.Repeat("?,", length-1) + "?)", nil
 	}
 }
-func parseXML(path string) (root *XMLRoot, err error) {
+
+func parseXML(path string) (f *File, err error) {
 	xmlData, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	root = &XMLRoot{
+	f = &File{
 		Selects:  []SQLContent{},
 		Executes: []SQLContent{},
 		Inserts:  []SQLContent{},
 	}
-	err = xml.Unmarshal(xmlData, root)
+	err = xml.Unmarshal(xmlData, f)
 	return
+}
 
+func parseYAML(path string) (f *File, err error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	f = &File{
+		Selects:  []SQLContent{},
+		Executes: []SQLContent{},
+		Inserts:  []SQLContent{},
+	}
+	err = yaml.Unmarshal(data, f)
+	return
 }

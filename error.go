@@ -3,8 +3,9 @@ package sago
 type errorSago int
 
 const (
-	Dir              errorSago = iota // dir error
-	Xml                               // unmarshal xml error
+	Dir errorSago = iota // dir error
+	Xml                  // unmarshal xml error
+	YAML
 	NoDBField
 	NoCacheInManager
 	BadCacheField
@@ -16,6 +17,7 @@ const (
 var errorSagoError = [...]string{
 	Dir:              "read dir wrong",
 	Xml:              "unmarshal xml error",
+	YAML:             "unmarshal yaml error",
 	NoDBField:        "no DB field in struct",
 	NoCacheInManager: "manager's Cache field is nil",
 	BadCacheField:    "Cache field of this struct is wrong type for sago. the field type must be pointer of the struct type",

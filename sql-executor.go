@@ -60,21 +60,21 @@ F:
 		return nil
 	}
 }
-func (executor *SQLExecutor) executeTpl(args []reflect.Value) (sql string, sqlArgs []interface{}, err error) {
+func (e *SQLExecutor) executeTpl(args []reflect.Value) (sql string, sqlArgs []interface{}, err error) {
 	ctx := map[string]interface{}{}
 	for i, v := range args {
-		ctx[executor.Fn.Args[i]] = v.Interface()
+		ctx[e.Fn.Args[i]] = v.Interface()
 	}
-	tpl, _ := executor.Tpl.Clone()
-	ctx["table"] = executor.Table
-	ctx["fields"] = executor.FieldsString
+	tpl, _ := e.Tpl.Clone()
+	ctx["table"] = e.Table
+	ctx["fields"] = e.FieldsString
 	buf := bytes.NewBuffer(nil)
 
 	fnCtx := &FnCtx{Args: []interface{}{}}
 
 	fnMap := template.FuncMap{}
 
-	for _, factory := range executor.funcFactories {
+	for _, factory := range e.funcFactories {
 		fnMap[factory.Name] = factory.Create(fnCtx)
 	}
 

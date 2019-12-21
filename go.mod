@@ -7,4 +7,5 @@ require (
 	github.com/jmoiron/sqlx v1.2.0
 	github.com/mengxiaozhu/linkerror v0.0.0-20170419072935-c6a31d4e635e
 	google.golang.org/appengine v1.6.5 // indirect
+	gopkg.in/yaml.v2 v2.2.7
 )
